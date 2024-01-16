@@ -1,16 +1,7 @@
-"""
-Strategy Description
-
-
-"""
-
-import os
+import math
 from datetime import datetime
 
-import pandas_ta
 from dotenv import load_dotenv
-from lumibot.backtesting import PolygonDataBacktesting
-from lumibot.brokers import Alpaca
 from lumibot.entities import Asset, TradingFee
 from lumibot.strategies.strategy import Strategy
 from lumibot.traders import Trader
@@ -21,241 +12,144 @@ load_dotenv()
 """
 Strategy Description
 
-This strategy uses bollinger bands to determine when to buy and sell. It will buy when the price is below the lower bollinger band,
-and sell when the price is above the upper bollinger band. It will also use the fast and slow exponential moving averages to determine
-when to buy and sell. It will buy when the fast EMA is above the slow EMA, and sell when the fast EMA is below the slow EMA.
+This strategy will rebalance a portfolio of crypto assets every X days. The portfolio is defined in the parameters
+section of the strategy. The portfolio is a list of assets, each with a symbol, a weight, and a quote asset. The
+quote asset is the asset that the symbol is quoted in. For example, if you want to trade BTC/USDT, then the quote
+asset is USDT. If you want to trade BTC/USD, then the quote asset is USD. The quote asset is used to calculate
+the value of the portfolio. The weight is the percentage of the portfolio that the asset should take up. For example,
+if you have 3 assets in your portfolio, each with a weight of 0.33, then each asset will take up 33% of the portfolio.
+
 """
 
-###################
-# Configuration
-###################
 
-# Set to True to run the strategy live, False to backtest
-IS_LIVE = os.environ.get("IS_LIVE")
-# Set this to False if you want to trade with real money, or True if you want to paper trade
-IS_PAPER_TRADING = os.environ.get("ALPACA_IS_PAPER")
-# The date and time to start backtesting from
-BACKTESTING_START = datetime(2019, 1, 1)
-# The date and time to end backtesting
-BACKTESTING_END = datetime(2023, 12, 30)
-# The asset to use as the quote asset
-QUOTE_ASSET = Asset(symbol="USD", asset_type="forex")
-# The trading fee to use for backtesting
-TRADING_FEE = TradingFee(percent_fee=0.001)  # Assuming 0.1% fee per trade
+class CustomETF(Strategy):
+    # =====Overloading lifecycle methods=============
 
-
-class Crypto_BBands_v2(Strategy):
     parameters = {
-        "asset": Asset("BTC", asset_type="crypto"),  # The asset to trade
-        "secondary_asset": Asset(
-            "ETH", asset_type="crypto"
-        ),  # The secondary asset to trade
-        "bbands_length_days": 20,  # Number of days to use for the bollinger bands
-        "fixed_income_symbol": "USFR",  # The fixed income ETF that we will be using when we are out of the market
-        "slow_ema_length_days": 50,  # The length of the slow EMA
-        "fast_ema_length_days": 20,  # The length of the fast EMA
-        "days_length_supertrend": 5,  # The number of days to use for the super trend
+        "portfolio": [
+            {
+                "symbol": Asset(symbol="BTC", asset_type="crypto"),
+                # "quote": Asset(symbol="USDT", asset_type="crypto"),  # Use for Kucoin
+                "quote": Asset(symbol="USD", asset_type="forex"),  # For Alpaca/Backtest
+                "weight": 0.32,
+            },
+            {
+                "symbol": Asset(symbol="ETH", asset_type="crypto"),
+                # "quote": Asset(symbol="USDT", asset_type="crypto"),  # Use for Kucoin
+                "quote": Asset(symbol="USD", asset_type="forex"),  # For Alpaca/Backtest
+                "weight": 0.32,
+            },
+            {
+                "symbol": Asset(symbol="LTC", asset_type="crypto"),
+                # "quote": Asset(symbol="USDT", asset_type="crypto"),  # Use for Kucoin
+                "quote": Asset(symbol="USD", asset_type="forex"),  # For Alpaca/Backtest
+                "weight": 0.32,
+            },
+        ],
+        "rebalance_period": 10,
     }
 
     def initialize(self):
-        # Run the strategy every 1 day
         self.sleeptime = "1D"
+        self.set_market("24/7")
 
-        # Set supertrend counter to 0
-        self.supertrend_counter = 0
+        # Setting the counter
+        self.counter = None
 
     def on_trading_iteration(self):
-        asset = self.parameters["asset"]
-        secondary_asset = self.parameters["secondary_asset"]
-        bbands_length_days = self.parameters["bbands_length_days"]
-        fixed_income_symbol = self.parameters["fixed_income_symbol"]
-        slow_ema_length_days = self.parameters["slow_ema_length_days"]
-        fast_ema_length_days = self.parameters["fast_ema_length_days"]
-        days_length_supertrend = self.parameters["days_length_supertrend"]
-
-        # Calculate the number of days we should get historical prices for
-        days_length = max(
-            bbands_length_days, slow_ema_length_days, fast_ema_length_days
-        )
-
-        # Get the historical prices
-        minute_count = (
-            60 * 24 * days_length
-        )  # The number of minutes to use for the bollinger bands
-        historical_prices = self.get_historical_prices(
-            asset, minute_count, timestep="minute"
-        )
-        df = historical_prices.df
-
-        current_price = self.get_last_price(asset)
-
-        # Calculate the bollinger bands
-        bbands_length_minutes = (
-            60 * 24 * bbands_length_days
-        )  # The number of minutes to use for the bollinger bands
-        bbands = df.ta.bbands(length=bbands_length_minutes, append=True)
-
-        # Find the columns that has BBU in it
-        bbu_columns = [col for col in bbands.columns if "BBU" in col]
-
-        # Find the columns that has BBL in it
-        bbl_columns = [col for col in bbands.columns if "BBL" in col]
-
-        # Add the bollinger bands to the dataframe
-        df["BBANDS_UPPER"] = bbands[bbu_columns[0]]
-        df["BBANDS_LOWER"] = bbands[bbl_columns[0]]
-
-        current_upper = df["BBANDS_UPPER"].iloc[-1]
-        current_lower = df["BBANDS_LOWER"].iloc[-1]
-
-        # Calculate the EMAs
-        slow_ema_length_minutes = (
-            60 * 24 * slow_ema_length_days
-        )  # The number of minutes to use for the slow EMA
-        df["EMA_SLOW"] = df["close"].ewm(span=slow_ema_length_minutes).mean()
-        fast_ema_length_minutes = (
-            60 * 24 * fast_ema_length_days
-        )  # The number of minutes to use for the fast EMA
-        df["EMA_FAST"] = df["close"].ewm(span=fast_ema_length_minutes).mean()
-
-        current_slow_ema = df["EMA_SLOW"].iloc[-1]
-        current_fast_ema = df["EMA_FAST"].iloc[-1]
-
-        # Add lines for the current price and the current bollinger bands
-        self.add_line("current_price", current_price)
-        self.add_line("current_upper", current_upper)
-        self.add_line("current_lower", current_lower)
-        self.add_line("current_slow_ema", current_slow_ema)
-        self.add_line("current_fast_ema", current_fast_ema)
-
-        # Check if we are in super trend mode
-        if current_fast_ema > current_slow_ema:
-            # We are in super trend mode, so increment the counter
-            self.supertrend_counter += 1
-        else:
-            # We are not in super trend mode, so reset the counter
-            self.supertrend_counter = 0
-
-        # If we are in super trend mode for more than days_length_supertrend, then we should buy
-        if self.supertrend_counter > days_length_supertrend:
+        # If the target number of minutes (period) has passed, rebalance the portfolio
+        if self.counter == self.parameters["rebalance_period"] or self.counter is None:
+            self.counter = 0
+            self.rebalance_portfolio()
             self.log_message(
-                f"We have been in super trend mode for {self.supertrend_counter} days, so we should buy"
+                f"Next portfolio rebalancing will be in {self.parameters['rebalance_period']} cycles"
             )
-
-            # Buy the primary asset
-            self.buy_asset(asset, fixed_income_symbol, 0.45)
-
-            # Buy the secondary asset
-            self.buy_asset(secondary_asset, fixed_income_symbol, 0.45)
-
-            return
-
-        # If it's the first time we're running the strategy, we should buy
-        if self.first_iteration:
-            self.log_message(
-                f"Buying {asset.symbol} because it's the first time we're running the strategy"
-            )
-
-            # Buy the asset
-            self.buy_asset(asset, fixed_income_symbol, 0.9)
-
-        # Check if we should buy
-        elif current_price < current_lower:
-            self.log_message(
-                f"Current price is {current_price}, which is below the lower bollinger band of {current_lower}, so we should buy"
-            )
-
-            # Buy the asset
-            self.buy_asset(asset, fixed_income_symbol, 0.9)
-
-        # Check if we should sell
-        elif current_price > current_upper:
-            self.log_message(
-                f"Current price is {current_price}, which is above the upper bollinger band of {current_upper}, so we should sell (or just stay in cash for now)"
-            )
-
-            # Sell the asset
-            self.sell_asset(asset, fixed_income_symbol)
-
         else:
             self.log_message(
-                f"Current price is {current_price}, which is between the bollinger bands of {current_lower} and {current_upper}, so we should do nothing"
+                "Waiting for next rebalance, counter is {self.counter} but should be {self.parameters['rebalance_period']} to rebalance"
             )
 
-    def buy_asset(self, asset, fixed_income_symbol, pct_portfolio_to_use):
-        # Check first if we already have a position in the asset
-        current_position = self.get_position(asset)
+        self.counter += 1
 
-        self.log_message(f"Considering to buy {asset.symbol}")
+    # =============Helper methods===================
 
-        if current_position is not None:
-            self.log_message(
-                "We already have a position in the asset, so we should not buy"
-            )
-            return
+    def rebalance_portfolio(self):
+        """Rebalance the portfolio and create orders"""
+        orders = []
+        for asset in self.parameters["portfolio"]:
+            # Get all of our variables from portfolio
+            asset_to_trade = asset.get("symbol")
+            weight = asset.get("weight")
+            quote = asset.get("quote")
+            symbol = asset_to_trade.symbol
 
-        self.log_message("We do not have a position in the asset, so we should buy")
+            last_price = self.get_last_price(asset_to_trade, quote=quote)
 
-        # First, sell all of our fixed income ETF
-        # Get the position for the fixed income ETF
-        fixed_income_asset = Asset(fixed_income_symbol, asset_type="stock")
-        fixed_income_position = self.get_position(fixed_income_asset)
-
-        # Sell all of the fixed income ETF
-        if fixed_income_position is not None:
-            order = self.create_order(
-                fixed_income_asset, fixed_income_position.quantity, "sell"
-            )
-            self.submit_order(order)
-
-            # Sleep for 5 seconds to make sure the sell orders go through first before buying
-            self.sleep(5)
-
-        # Calculate how many shares we can buy (use all of our cash)
-        cash_to_buy = self.get_portfolio_value() * pct_portfolio_to_use
-        current_price = self.get_last_price(asset)
-        shares_to_buy = cash_to_buy / current_price
-
-        if shares_to_buy > 0:
-            order = self.create_order(asset, shares_to_buy, "buy")
-            self.submit_orders([order])
-
-            # Add markers to the chart
-            self.add_marker(
-                "buy", symbol="triangle-up", value=current_price, color="green"
-            )
-
-    def sell_asset(self, asset, fixed_income_symbol):
-        current_price = self.get_last_price(asset)
-
-        # Check first if we already have a position in the asset
-        current_position = self.get_position(asset)
-
-        # Only sell if we have a position
-        if current_position is not None:
-            self.log_message("We have a position in the asset, so we should sell")
-            self.sell_all()
-
-            # Add markers to the chart
-            self.add_marker(
-                "sell", symbol="triangle-down", value=current_price, color="red"
-            )
-
-            # Sleep for 5 seconds to make sure the sell orders go through first before buying
-            self.sleep(5)
-
-            # Buy the fixed income ETF
-
-            # Calculate how many shares we can buy (use all of our cash)
-            cash_to_buy = self.get_portfolio_value()
-            fixed_income_asset = Asset(symbol=fixed_income_symbol, asset_type="stock")
-            fixed_income_price = self.get_last_price(fixed_income_asset)
-            fixed_income_quantity = cash_to_buy // fixed_income_price
-
-            if fixed_income_quantity > 0:
-                order = self.create_order(
-                    fixed_income_asset, fixed_income_quantity, "buy"
+            if last_price is None:
+                self.log_message(
+                    f"Couldn't get a price for {symbol} self.get_last_price() returned None"
                 )
+                continue
+
+            self.log_message(
+                f"Last price for {symbol} is {last_price:,f}, and our weight is {weight}. Current portfolio value is {self.portfolio_value}"
+            )
+
+            # Get how many shares we already own
+            # (including orders that haven't been executed yet)
+            quantity = self.get_asset_potential_total(asset_to_trade)
+
+            # Calculate how many shares we need to buy or sell
+            shares_value = self.portfolio_value * weight
+            new_quantity = shares_value / last_price
+
+            quantity_difference = new_quantity - quantity
+            self.log_message(
+                f"Currently own {quantity} shares of {symbol} but need {new_quantity}, so the difference is {quantity_difference}"
+            )
+
+            # If quantity is positive then buy, if it's negative then sell
+            side = ""
+            if quantity_difference > 0:
+                side = "buy"
+            elif quantity_difference < 0:
+                side = "sell"
+
+            # Execute the
+            # order if necessary
+            if side:
+                qty = abs(quantity_difference)
+
+                # Trim to 2 decimal places because the API only accepts
+                # 2 decimal places for some assets. This could be done better
+                # on an asset by asset basis. e.g. for BTC, we want to use 4
+                # decimal places at Alpaca, or a 0.0001 increment. See other coins
+                # at Alpaca here: https://alpaca.markets/docs/trading/crypto-trading/
+                qty_trimmed = math.floor(qty * 100) / 100
+
+                if qty_trimmed > 0:
+                    order = self.create_order(
+                        asset_to_trade,
+                        qty_trimmed,
+                        side,
+                        quote=quote,
+                    )
+                    orders.append(order)
+
+        if len(orders) == 0:
+            self.log_message("No orders to execute")
+
+        # Execute sell orders first so that we have the cash to buy the new shares
+        for order in orders:
+            if order.side == "sell":
+                self.submit_order(order)
+
+        # Sleep for 5 seconds to make sure the sell orders are filled
+        self.sleep(5)
+
+        # Execute buy orders
+        for order in orders:
+            if order.side == "buy":
                 self.submit_order(order)
 
 
@@ -264,41 +158,50 @@ class Crypto_BBands_v2(Strategy):
 ###################
 
 if __name__ == "__main__":
-    # Convert the string to a boolean.
-    # This will be True if the string is "True", and False otherwise.
-    is_live = IS_LIVE.lower() != "false"
+    # Set to True to run the strategy live, or False to backtest
+    is_live = False
 
     if is_live:
         ############################################
         # Run the strategy live
         ############################################
-        from credentials import ALPACA_CONFIG
         from lumibot.brokers import Alpaca
+
+        from credentials import ALPACA_CONFIG
 
         trader = Trader()
 
         broker = Alpaca(ALPACA_CONFIG)
 
-        strategy = Crypto_BBands_v2(broker=broker)
+        strategy = CustomETF(broker=broker)
         trader.add_strategy(strategy)
         trader.run_all()
 
     else:
-        ############################################
+        ####
         # Backtest the strategy
-        ############################################
+        ####
+        from lumibot.backtesting import PolygonDataBacktesting
 
-        # Polygon API key
-        POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
+        from credentials import POLYGON_CONFIG
 
-        Crypto_BBands_v2.backtest(
+        # Backtest this strategy
+        backtesting_start = datetime(2020, 1, 1)
+        backtesting_end = datetime.now()
+
+        # 0.1% fee, loosely based on Kucoin (might actually be lower bc we're trading a lot)
+        # https://www.kucoin.com/vip/level
+        trading_fee = TradingFee(percent_fee=0.001)
+        quote_asset = Asset(symbol="USD", asset_type="forex")
+
+        CustomETF.backtest(
             PolygonDataBacktesting,
-            BACKTESTING_START,
-            BACKTESTING_END,
+            backtesting_start,
+            backtesting_end,
             benchmark_asset=Asset(symbol="BTC", asset_type="crypto"),
-            quote_asset=QUOTE_ASSET,
-            buy_trading_fees=[TRADING_FEE],
-            sell_trading_fees=[TRADING_FEE],
-            polygon_api_key=POLYGON_API_KEY,
-            polygon_has_paid_subscription=False,
+            quote_asset=quote_asset,
+            buy_trading_fees=[trading_fee],
+            sell_trading_fees=[trading_fee],
+            polygon_api_key=POLYGON_CONFIG["API_KEY"],
+            polygon_has_paid_subscription=POLYGON_CONFIG["IS_PAID_SUBSCRIPTION"],
         )
