@@ -18,9 +18,13 @@ By using this strategy and code, you acknowledge and agree to the terms outlined
 
 # Strategy Description
 
-This strategy uses bollinger bands to determine when to buy and sell. It will buy when the price is below the lower bollinger band,
-and sell when the price is above the upper bollinger band. It will also use the fast and slow exponential moving averages to determine
-when to buy and sell. It will buy when the fast EMA is above the slow EMA, and sell when the fast EMA is below the slow EMA.
+This strategy will rebalance a portfolio of crypto assets every X days. The portfolio is defined in the parameters
+section of the strategy. The portfolio is a list of assets, each with a symbol, a weight, and a quote asset. The
+quote asset is the asset that the symbol is quoted in. For example, if you want to trade BTC/USDT, then the quote
+asset is USDT. If you want to trade BTC/USD, then the quote asset is USD. The quote asset is used to calculate
+the value of the portfolio. The weight is the percentage of the portfolio that the asset should take up. For example,
+if you have 3 assets in your portfolio, each with a weight of 0.33, then each asset will take up 33% of the portfolio.
+
 
 # Installation
 
