@@ -1,4 +1,5 @@
 import math
+import os
 from datetime import datetime
 
 from dotenv import load_dotenv
@@ -158,16 +159,15 @@ class CustomETF(Strategy):
 ###################
 
 if __name__ == "__main__":
-    # Set to True to run the strategy live, or False to backtest
-    is_live = False
+    # Check if we are backtesting or not
+    IS_BACKTESTING = os.environ.get("IS_BACKTESTING")
 
-    if is_live:
+    if not IS_BACKTESTING or IS_BACKTESTING.lower() == "false":
         ############################################
         # Run the strategy live
         ############################################
-        from lumibot.brokers import Alpaca
-
         from credentials import ALPACA_CONFIG
+        from lumibot.brokers import Alpaca
 
         trader = Trader()
 
@@ -177,13 +177,12 @@ if __name__ == "__main__":
         trader.add_strategy(strategy)
         trader.run_all()
 
-    else:
+    elif IS_BACKTESTING.lower() == "true":
         ####
         # Backtest the strategy
         ####
-        from lumibot.backtesting import PolygonDataBacktesting
-
         from credentials import POLYGON_CONFIG
+        from lumibot.backtesting import PolygonDataBacktesting
 
         # Backtest this strategy
         backtesting_start = datetime(2020, 1, 1)
@@ -204,4 +203,9 @@ if __name__ == "__main__":
             sell_trading_fees=[trading_fee],
             polygon_api_key=POLYGON_CONFIG["API_KEY"],
             polygon_has_paid_subscription=POLYGON_CONFIG["IS_PAID_SUBSCRIPTION"],
+        )
+
+    else:
+        raise ValueError(
+            f"IS_BACKTESTING must be either True or False, but it is {IS_BACKTESTING}"
         )
