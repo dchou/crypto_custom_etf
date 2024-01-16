@@ -32,7 +32,7 @@ To run this strategy on Replit you need to click the "Run on Repl.it" button bel
  
 ### TIP: Right click on the button and open it in a new tab so that you can see the instructions while you are setting up the strategy (otherwise you will have to press the back button to see the instructions again).
 
-[![Run on Repl.it](https://replit.com/badge/github/Lumiwealth-Strategies/crypto_custom_etf)](https://github.com/Lumiwealth-Strategies/crypto_custom_etf)
+[![Run on Repl.it](https://replit.com/badge/github/Lumiwealth-Strategies/crypto_custom_etf)](https://replit.com/new/github/Lumiwealth-Strategies/crypto_custom_etf)
 
 # Configuration
 
