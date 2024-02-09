@@ -1,14 +1,11 @@
 import math
-import os
 from datetime import datetime
 
-from dotenv import load_dotenv
 from lumibot.entities import Asset, TradingFee
 from lumibot.strategies.strategy import Strategy
 from lumibot.traders import Trader
 
-# load .env file (if one exists)
-load_dotenv()
+from credentials import IS_BACKTESTING
 
 """
 Strategy Description
@@ -159,15 +156,13 @@ class CustomETF(Strategy):
 ###################
 
 if __name__ == "__main__":
-    # Check if we are backtesting or not
-    IS_BACKTESTING = os.environ.get("IS_BACKTESTING")
-
-    if not IS_BACKTESTING or IS_BACKTESTING.lower() == "false":
+    if not IS_BACKTESTING:
         ############################################
         # Run the strategy live
         ############################################
-        from credentials import ALPACA_CONFIG
         from lumibot.brokers import Alpaca
+
+        from credentials import ALPACA_CONFIG
 
         trader = Trader()
 
@@ -181,8 +176,9 @@ if __name__ == "__main__":
         ####
         # Backtest the strategy
         ####
-        from credentials import POLYGON_CONFIG
         from lumibot.backtesting import PolygonDataBacktesting
+
+        from credentials import POLYGON_CONFIG
 
         # Backtest this strategy
         backtesting_start = datetime(2020, 1, 1)

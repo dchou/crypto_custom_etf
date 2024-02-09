@@ -26,7 +26,7 @@ the value of the portfolio. The weight is the percentage of the portfolio that t
 if you have 3 assets in your portfolio, each with a weight of 0.33, then each asset will take up 33% of the portfolio.
 
 
-# Installation
+# Getting Started
 
 To run this strategy on Replit you need to click the "Run on Repl.it" button below and fill in your secret keys in the replit secrets tab. 
  
@@ -34,7 +34,7 @@ To run this strategy on Replit you need to click the "Run on Repl.it" button bel
 
 [![Run on Repl.it](https://replit.com/badge/github/Lumiwealth-Strategies/crypto_custom_etf)](https://replit.com/new/github/Lumiwealth-Strategies/crypto_custom_etf)
 
-# Configuration
+# Secrets Configuration
 
 The strategy can be configured by setting the following secrets in the replit secrets tab. Inside replit, just open the secrets tab (under tools) and click "New secret" to add a new secret. The secret key should be the name of the secret (from the left column in the table below) and the secret value should be the value of the secret depending on your situation (example values are given in the right column in the table below).
 
@@ -50,7 +50,7 @@ If you are running the strategy on your own computer, you can set these as envir
 
 # Modifying the Parameters
 
-The strategy parameters can be modified by editing the "parameters" section of the code, usually near the top of the file just under the class defeinition. It is a python dictionary that looks like this:
+The strategy parameters can be modified by editing the "parameters" section of the `main.py` file, usually near the top of the file just under the `class` definition. It is a python dictionary that looks like this:
 
 ```python
 parameters = {
@@ -68,7 +68,7 @@ parameters = {
 }
 ```
 
-Each parameter controls a different aspect of the strategy, and the description of each parameter is given next to the parameter in the code. Changing the parameters can have a big effect on the performance of the strategy, so it is recommended that you backtest the strategy after changing the parameters to see how it performs.
+Each parameter controls a different aspect of the strategy, and the description of each parameter is given next to the parameter in the code. Changing the parameters can have a big effect on the performance of the strategy, so it is recommended that you backtest the strategy after changing the parameters to see how it would have performed.
 
 # Backtest
 
