@@ -26,19 +26,19 @@ class CustomETF(Strategy):
     parameters = {
         "portfolio": [
             {
-                "symbol": Asset(symbol="BTC", asset_type="crypto"),
+                "asset": Asset(symbol="ETH", asset_type="crypto"),
                 # "quote": Asset(symbol="USDT", asset_type="crypto"),  # Use for Kucoin
                 "quote": Asset(symbol="USD", asset_type="forex"),  # For Alpaca/Backtest
                 "weight": 0.32,
             },
             {
-                "symbol": Asset(symbol="ETH", asset_type="crypto"),
+                "asset": Asset(symbol="BTC", asset_type="crypto"),
                 # "quote": Asset(symbol="USDT", asset_type="crypto"),  # Use for Kucoin
                 "quote": Asset(symbol="USD", asset_type="forex"),  # For Alpaca/Backtest
                 "weight": 0.32,
             },
             {
-                "symbol": Asset(symbol="LTC", asset_type="crypto"),
+                "asset": Asset(symbol="LTC", asset_type="crypto"),
                 # "quote": Asset(symbol="USDT", asset_type="crypto"),  # Use for Kucoin
                 "quote": Asset(symbol="USD", asset_type="forex"),  # For Alpaca/Backtest
                 "weight": 0.32,
@@ -60,7 +60,7 @@ class CustomETF(Strategy):
             self.counter = 0
             self.rebalance_portfolio()
             self.log_message(
-                f"Next portfolio rebalancing will be in {self.parameters['rebalance_period']} cycles"
+                f"Next portfolio rebalancing will be in {self.parameters['rebalance_period']} cycles."
             )
         else:
             self.log_message(
@@ -76,7 +76,7 @@ class CustomETF(Strategy):
         orders = []
         for asset in self.parameters["portfolio"]:
             # Get all of our variables from portfolio
-            asset_to_trade = asset.get("symbol")
+            asset_to_trade = asset.get("asset")
             weight = asset.get("weight")
             quote = asset.get("quote")
             symbol = asset_to_trade.symbol
@@ -136,6 +136,28 @@ class CustomETF(Strategy):
 
         if len(orders) == 0:
             self.log_message("No orders to execute")
+
+        # First sell any assets that are not in the portfolio
+        positions = self.get_positions()
+        for position in positions:
+            if position.asset not in [
+                obj["asset"] for obj in self.parameters["portfolio"]
+            ]:
+                # Check if it's the quote asset
+                if position.asset == self.quote_asset:
+                    continue
+
+                if position.quantity > 0:
+                    order = self.create_order(position.asset, position.quantity, "sell")
+                    if not hasattr(order, "quantity") or order.quantity is None:
+                        self.log_message(
+                            f"Couldn't create a sell order for {position.asset.symbol} because order.quantity is None"
+                        )
+                        continue
+                    self.submit_order(order)
+
+        # Sleep for 5 seconds to make sure the sell orders are filled
+        self.sleep(5)
 
         # Execute sell orders first so that we have the cash to buy the new shares
         for order in orders:
