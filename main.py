@@ -29,19 +29,19 @@ class CustomETF(Strategy):
                 "asset": Asset(symbol="ETH", asset_type="crypto"),
                 # "quote": Asset(symbol="USDT", asset_type="crypto"),  # Use for Kucoin
                 "quote": Asset(symbol="USD", asset_type="forex"),  # For Alpaca/Backtest
-                "weight": 0.32,
+                "weight": 0.31,
             },
             {
                 "asset": Asset(symbol="BTC", asset_type="crypto"),
                 # "quote": Asset(symbol="USDT", asset_type="crypto"),  # Use for Kucoin
                 "quote": Asset(symbol="USD", asset_type="forex"),  # For Alpaca/Backtest
-                "weight": 0.32,
+                "weight": 0.31,
             },
             {
                 "asset": Asset(symbol="LTC", asset_type="crypto"),
                 # "quote": Asset(symbol="USDT", asset_type="crypto"),  # Use for Kucoin
                 "quote": Asset(symbol="USD", asset_type="forex"),  # For Alpaca/Backtest
-                "weight": 0.32,
+                "weight": 0.31,
             },
         ],
         "rebalance_period": 10,
@@ -171,6 +171,9 @@ class CustomETF(Strategy):
         for order in orders:
             if order.side == "buy":
                 self.submit_order(order)
+
+                # TODO: Will this work better for Alpaca?
+                # self.safe_sleep(5)
 
 
 ###################
